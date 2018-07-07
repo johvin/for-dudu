@@ -3,7 +3,7 @@ const path = require('path');
 const xlsx = require('node-xlsx');
 
 const rootDir = '/Users/johvin/Documents/财务/代理商报表/6月';
-const yearMonth = '2018-06'
+const yearMonth = '2018-06';
 
 const agentLogData = getAgentLogData(yearMonth);
 const agentOrderData = getAgentOrderData(yearMonth);
