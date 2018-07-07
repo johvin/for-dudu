@@ -35,8 +35,8 @@ function getAgentLogData (yearMonth) {
 
   return agentLogList.reduce((a, b) => {
     const record = {
-      money: parseFloat(b[2]),
-      remaining: parseFloat(b[3]) || 0, // 余额，暂时都是整数
+      money: parseFloat(b[2]), // 充值或消耗，目前都是整数
+      remaining: parseFloat(b[3]) || 0, // 余额，目前都是整数
       detail: b[4],
       date: b[5],
       optUser: b[6]
