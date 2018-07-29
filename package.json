@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "财务报表处理",
   "scripts": {
-    "agent": "node src/agent.js",
+    "agent": "node src/agent/index.js",
+    "invoice": "node src/invoice/index.js",
     "payment": "node src/payment.js",
-    "start": "node src/agent/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
