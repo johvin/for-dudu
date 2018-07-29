@@ -14,8 +14,8 @@ function parseAgentLogData(agentLogList, headerMap, yearMonth) {
       optUser: b[headerMap.optUser]
     };
 
-    if (!(b[0] in a)) {
-      a[b[0]] = {
+    if (!(b[headerMap.account] in a)) {
+      a[b[headerMap.account]] = {
         account: b[headerMap.account],
         name: ('' + b[headerMap.companyName]).trim(),
         remaining: record.remaining,
@@ -27,9 +27,9 @@ function parseAgentLogData(agentLogList, headerMap, yearMonth) {
 
     // 不是指定月的数据不做计算
     if (record.date.startsWith(yearMonth)) {
-      a[b[0]].records.push(record);
+      a[b[headerMap.account]].records.push(record);
       // update recharge or consume
-      a[b[0]][record.money > 0 ? 'recharge' : 'consume'] += record.money;
+      a[b[headerMap.account]][record.money > 0 ? 'recharge' : 'consume'] += record.money;
     }
 
     return a;
