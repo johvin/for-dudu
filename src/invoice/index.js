@@ -6,7 +6,7 @@ const {
   getYYYYMMDDDateStr,
 } = require('../utils');
 
-const rootDir = '/Users/nilianzhu/Documents/财务/例子-nlz/6月';
+const rootDir = '/Users/nilianzhu/Documents/财务/例子-nlz/7月';
 // 当月 key
 const thisMonth = '2018-07';
 let d = new Date(thisMonth);
@@ -21,7 +21,7 @@ d = null;
 
 const filenames = {
   input: [
-    '2018.07月发票开具明细表-成都.xlsx'
+    '2018.07开票统计-lrx（北京）.xlsx'
   ],
   output: [
     '开票明细汇总.xlsx'
@@ -51,7 +51,7 @@ const invoiceSummaryDateTypeMap = {
 // 支付类型识别 regexp
 const paymentTypeRe = /微信|支付宝|对公打款|POS/i;
 
-// 订单类型排序用
+// 订单类型排序权值 map
 const invoiceSummaryOrderTypeOrderMap = {
   '秀点': 0,
   '秀点（营销推广）': 3,
@@ -233,6 +233,7 @@ function dealWithNegativeInvoice(invoiceList) {
 function parseInvoiceData(invoiceList, headerMap, thisMonth) {
   // 日期 regexp
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const unpredefinedOrderTypeSet = new Set();
 
   const filterList = [];
   invoiceList.forEach((b, index) => {
@@ -252,7 +253,7 @@ function parseInvoiceData(invoiceList, headerMap, thisMonth) {
 
     // 非已定义的订单类型给出 warning
     if (!(orderType in invoiceSummaryOrderTypeOrderMap)) {
-      console.warn('订单类型不在已定义范围内', orderType);
+      unpredefinedOrderTypeSet.add(orderType);
     }
   
     const record = {
@@ -267,9 +268,10 @@ function parseInvoiceData(invoiceList, headerMap, thisMonth) {
 
     if (typeof record.orderDate === 'number') {
       record.orderDate = getYYYYMMDDDateStr(record.orderDate);
-    } else if (dateRe.test((record.orderDate || '').trim())) {
+    } else if (typeof record.orderDate === 'string' && dateRe.test(record.orderDate.trim())) {
       record.orderDate = record.orderDate.trim();
     } else if (record.orderDate === null || record.orderDate === undefined) {
+      // 空日期一般是预开票或代理商消耗（对上月消费的统一开票），两者都不存在实际订单
       record.orderDate = null;
     } else {
       console.error(`日期格式错误, row: ${index + 1}`, typeof record.orderDate, record.orderDate);
@@ -279,10 +281,18 @@ function parseInvoiceData(invoiceList, headerMap, thisMonth) {
     filterList.push(record);
   });
 
+  if (unpredefinedOrderTypeSet.size > 0) {
+    console.warn(`订单类型中包含 ${unpredefinedOrderTypeSet.size} 个不在已定义范围内的值：`);
+    for(let it of unpredefinedOrderTypeSet) {
+      console.log(it === '' || it === null || it === undefined ? '空值' : it);
+    }
+  }
+
   return filterList;
 }
 
 // 获取日期所属类型
+// return thisMonth/lastMonth/monthBeforeLast/noDate
 function getDateType(date) {
   switch (true) {
     case date === null:
