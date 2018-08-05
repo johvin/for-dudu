@@ -3,14 +3,21 @@ const {
   getYYYYMMDDDateStr,
 } = require('../utils');
 
-// 获取指定月份的代理商操作日志
+// 获取指定月份的代理商操作日志（max)
 function parseAgentLogData(agentLogList, headerMap, yearMonth) {
   return agentLogList.reduce((a, b) => {
+    const logDate = getYYYYMMDDDateStr(b[headerMap.logDate]);
+
+    if (logDate.slice(0, 7) > yearMonth) {
+      console.warn(colors.warn(`忽略时间大于 ${yearMonth} 的 max 日志：\n`), b);
+      return a;
+    }
+
     const record = {
       money: parseFloat(b[headerMap.money]),
       remaining: parseFloat(b[headerMap.remaining]) || 0, // 余额，暂时都是整数
       detail: b[headerMap.detail],
-      date: getYYYYMMDDDateStr(b[headerMap.logDate]),
+      date: logDate,
       optUser: b[headerMap.optUser]
     };
 
@@ -44,7 +51,7 @@ function parseAgentOrderData(agentOrderList, headerMap, yearMonth) {
 
     // 订单不属于该月份
     if (!dateStr.startsWith(yearMonth)) {
-      console.warn(`不属于 ${yearMonth} 的代理商订单：`, b);
+      console.warn(colors.warn(`不属于 ${yearMonth} 的代理商订单：\n`), b);
       return a;
     }
 

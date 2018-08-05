@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const xlsx = require('node-xlsx');
+require('../colors');
 const {
   toFixed,
   getYYYYMMDDDateStr,
@@ -9,15 +10,12 @@ const {
 const rootDir = '/Users/nilianzhu/Documents/财务/例子-nlz/7月';
 // 当月 key
 const thisMonth = '2018-07';
-let d = new Date(thisMonth);
-d.setMonth(d.getMonth() - 1);
 // 上个月 key
-const lastMonth = d.toISOString().slice(0, 7);
+const lastMonth = ((d) => (d.setMonth(d.getMonth() - 1), d.toISOString().slice(0, 7)))(new Date(thisMonth));
 // 上个月之前的月份 key
 const monthBeforeLast = 'monthBeforeLast';
 // 不存在创建日期
 const noDate = 'noDate';
-d = null;
 
 const filenames = {
   input: [
@@ -71,6 +69,12 @@ const invoiceIndicatorMap = {
   invoiceTax: '税额'
 };
 
+printMeta();
+
+function printMeta() {
+  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n文件夹路径: ${colors.em(rootDir)}，相关文件：\n${JSON.stringify(filenames, null, 2)}\n`));
+}
+
 const [{ data: invoiceList }] = xlsx.parse(path.resolve(rootDir, filenames.input[0]));
 invoiceList.shift();
 
@@ -100,7 +104,7 @@ function genInvoiceDetailSummaryReport() {
   return new Promise((resolve) => {
     fs.createWriteStream(path.resolve(rootDir, thisMonth + filenames.output[0])).end(buffer, resolve);
   }).then(() => {
-    console.log('发票明细汇总搞定 ✌️️️️️✌️️️️️✌️️️️️');
+    console.log(colors.ok('发票明细汇总搞定 ✌️️️️️✌️️️️️✌️️️️️'));
   });
 }
 
@@ -274,7 +278,7 @@ function parseInvoiceData(invoiceList, headerMap, thisMonth) {
       // 空日期一般是预开票或代理商消耗（对上月消费的统一开票），两者都不存在实际订单
       record.orderDate = null;
     } else {
-      console.error(`日期格式错误, row: ${index + 1}`, typeof record.orderDate, record.orderDate);
+      console.error(colors.error(`日期格式错误, row: ${index + 1}`), typeof record.orderDate, record.orderDate);
       throw new Error(`日期格式错误, row: ${index + 1}`);
     }
 
@@ -282,7 +286,7 @@ function parseInvoiceData(invoiceList, headerMap, thisMonth) {
   });
 
   if (unpredefinedOrderTypeSet.size > 0) {
-    console.warn(`订单类型中包含 ${unpredefinedOrderTypeSet.size} 个不在已定义范围内的值：`);
+    console.warn(colors.warn(`订单类型中包含 ${unpredefinedOrderTypeSet.size} 个不在已定义范围内的值：`));
     for(let it of unpredefinedOrderTypeSet) {
       console.log(it === '' || it === null || it === undefined ? '空值' : it);
     }

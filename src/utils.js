@@ -1,3 +1,4 @@
+// 数字格式化小数位数
 function toFixed(dividend, divisor, n = 2) {
   const weight = 10 ** n;
   return Math.round(dividend * weight / divisor) / weight;
