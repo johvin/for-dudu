@@ -7,9 +7,9 @@ const {
   getYYYYMMDDDateStr,
 } = require('../utils');
 
-const rootDir = '/Users/nilianzhu/Documents/财务/例子-nlz/7月';
+const rootDir = '/Users/nilianzhu/Documents/财务/例子-nlz/8月';
 // 当月 key
-const thisMonth = '2018-07';
+const thisMonth = '2018-08';
 // 上个月 key
 const lastMonth = ((d) => (d.setMonth(d.getMonth() - 1), d.toISOString().slice(0, 7)))(new Date(thisMonth));
 // 上个月之前的月份 key
@@ -17,25 +17,22 @@ const monthBeforeLast = 'monthBeforeLast';
 // 不存在创建日期
 const noDate = 'noDate';
 
-const filenames = {
-  input: [
-    '2018.07开票统计-lrx（北京）.xlsx'
-  ],
-  output: [
-    '开票明细汇总.xlsx'
-  ]
-};
+const inputFilenames = [
+  '2018.08 开票明细（北京）.xlsx',
+  '2018.08月发票开具明细表-成都(3).xlsx'
+];
 
 // 发票 header map
+// index 为负数表示不存在该列
 const hmInvoice = {
-  orderId: 3,
-  orderDate: 5,
-  paymentType: 6,
-  orderType: 8,
-  invoiceStatus: 10,
-  invoiceValue: 17,
-  noTaxInvoiceValue: 18,
-  invoiceTax: 19
+  orderId: 0,
+  orderDate: 7,
+  paymentType: 8,
+  orderType: 2,
+  invoiceStatus: -1,
+  invoiceValue: 4,
+  noTaxInvoiceValue: 5,
+  invoiceTax: 6
 };
 
 // 订单日期在数据表中的映射类型
@@ -70,22 +67,26 @@ const invoiceIndicatorMap = {
 };
 
 printMeta();
+inputFilenames.forEach(process);
+
 
 function printMeta() {
-  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n文件夹路径: ${colors.em(rootDir)}，相关文件：\n${JSON.stringify(filenames, null, 2)}\n`));
+  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n文件夹路径: ${colors.em(rootDir)}，相关文件：\n${JSON.stringify(inputFilenames, null, 2)}\n`));
 }
 
-const [{ data: invoiceList }] = xlsx.parse(path.resolve(rootDir, filenames.input[0]));
-invoiceList.shift();
+// 处理
+function process(inputFilename) {
+  const [{ data: invoiceList }] = xlsx.parse(path.resolve(rootDir, inputFilename));
+  invoiceList.shift();
 
-const invoiceData = parseInvoiceData(invoiceList, hmInvoice);
-const negativeListObj = dealWithNegativeInvoice(invoiceData);
-const invoiceSummary = getInvoiceSummaryByDimensions(invoiceData);
-// console.log(JSON.stringify(invoiceSummary, null, 2));
-genInvoiceDetailSummaryReport();
+  const invoiceData = parseInvoiceData(invoiceList, hmInvoice);
+  const negativeListObj = dealWithNegativeInvoice(invoiceData);
+  const invoiceSummary = getInvoiceSummaryByDimensions(invoiceData);
+  genInvoiceDetailSummaryReport(invoiceSummary, negativeListObj, inputFilename);
+}
 
 // 生成发票明细汇总表
-function genInvoiceDetailSummaryReport() {
+function genInvoiceDetailSummaryReport(invoiceSummary, negativeListObj, inputFilename) {
   const reportData = getInvoiceSummaryReportData(invoiceSummary);
   const { negativeMatchOrderIdList, negativeUnmatchOrderIdList } = negativeListObj;
   const matchData = negativeMatchOrderIdList.map(id => [id]);
@@ -100,11 +101,15 @@ function genInvoiceDetailSummaryReport() {
     name: '匹配负票',
     data: matchData
   }]);
+  
+  const ext = path.extname(inputFilename);
+  const outputFilename = `${path.basename(inputFilename, ext)}-汇总${ext}`;
 
   return new Promise((resolve) => {
-    fs.createWriteStream(path.resolve(rootDir, thisMonth + filenames.output[0])).end(buffer, resolve);
+    fs.createWriteStream(path.resolve(rootDir, outputFilename)).end(buffer, resolve);
   }).then(() => {
-    console.log(colors.ok('发票明细汇总搞定 ✌️️️️️✌️️️️️✌️️️️️'));
+    console.log(colors.ok(`${inputFilename} 发票明细汇总搞定 ✌️️️️️✌️️️️️✌️️️️️`));
+    console.log(colors.verbose(`输出文件路径: ${outputFilename}`));
   });
 }
 
@@ -241,9 +246,10 @@ function parseInvoiceData(invoiceList, headerMap, thisMonth) {
 
   const filterList = [];
   invoiceList.forEach((b, index) => {
-    const invoiceStatus = b[headerMap.invoiceStatus];
-    // 废票对明细没有影响，不统计
-    if (typeof invoiceStatus !== 'string' || invoiceStatus.includes('废')) {
+    const invoiceStatus = headerMap.invoiceStatus >= 0 && b[headerMap.invoiceStatus];
+    // 存在该列时，状态为废票的数据对明细没有影响，不统计
+    // 不存在该列时，认为所有数据均为有效状态
+    if (headerMap.invoiceStatus >= 0 && (typeof invoiceStatus !== 'string' || invoiceStatus.includes('废'))) {
       return;
     }
 
