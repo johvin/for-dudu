@@ -18,8 +18,8 @@ const monthBeforeLast = 'monthBeforeLast';
 const noDate = 'noDate';
 
 const inputFilenames = [
-  '2018.08 开票明细（北京）.xlsx',
-  '2018.08月发票开具明细表-成都(3).xlsx'
+  '2018.08月发票开具明细表-成都(3).xlsx',
+  '2018.08月发票开具明细表（北京）.xlsx',
 ];
 
 // 发票 header map
@@ -44,7 +44,7 @@ const invoiceSummaryDateTypeMap = {
 };
 
 // 支付类型识别 regexp
-const paymentTypeRe = /微信|支付宝|对公打款|POS/i;
+const paymentTypeRe = /微信|支付宝|苹果支付|对公打款|POS/i;
 
 // 订单类型排序权值 map
 const invoiceSummaryOrderTypeOrderMap = {
@@ -71,12 +71,20 @@ inputFilenames.forEach(process);
 
 
 function printMeta() {
-  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n文件夹路径: ${colors.em(rootDir)}，相关文件：\n${JSON.stringify(inputFilenames, null, 2)}\n`));
+  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n文件夹路径: ${colors.em(rootDir)}，一共 ${inputFilenames.length} 个文件\n`));
 }
 
 // 处理
 function process(inputFilename) {
-  const [{ data: invoiceList }] = xlsx.parse(path.resolve(rootDir, inputFilename));
+  console.log(colors.verbose(`\n正在处理 "${colors.green(inputFilename)}" ...\n`));
+
+  const filePath = path.resolve(rootDir, inputFilename);
+  
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`文件不存在 => ${filePath}`);
+  }
+
+  const [{ data: invoiceList }] = xlsx.parse(filePath);
   invoiceList.shift();
 
   const invoiceData = parseInvoiceData(invoiceList, hmInvoice);
@@ -88,17 +96,19 @@ function process(inputFilename) {
 // 生成发票明细汇总表
 function genInvoiceDetailSummaryReport(invoiceSummary, negativeListObj, inputFilename) {
   const reportData = getInvoiceSummaryReportData(invoiceSummary);
-  const { negativeMatchOrderIdList, negativeUnmatchOrderIdList } = negativeListObj;
-  const matchData = negativeMatchOrderIdList.map(id => [id]);
-  const unmatchData = negativeUnmatchOrderIdList.map(id => [id]);
+  const { negativeMatchOrderList, negativeUnmatchOrderList } = negativeListObj;
+
+  const getNegativeData = orderList => [['订单号', '发票金额', '不含税金额', '税额', '支付方式']].concat(orderList.map(it => [it.orderId, it.invoiceValue, it.noTaxInvoiceValue, it.invoiceTax, it.paymentType]));
+  const matchData = getNegativeData(negativeMatchOrderList);
+  const unmatchData = getNegativeData(negativeUnmatchOrderList);
   const buffer = xlsx.build([{
     name: '汇总',
     data: reportData
   }, {
-    name: '红冲',
+    name: '不匹配红冲',
     data: unmatchData
   }, {
-    name: '匹配负票',
+    name: '匹配红冲',
     data: matchData
   }]);
   
@@ -108,7 +118,7 @@ function genInvoiceDetailSummaryReport(invoiceSummary, negativeListObj, inputFil
   return new Promise((resolve) => {
     fs.createWriteStream(path.resolve(rootDir, outputFilename)).end(buffer, resolve);
   }).then(() => {
-    console.log(colors.ok(`${inputFilename} 发票明细汇总搞定 ✌️️️️️✌️️️️️✌️️️️️`));
+    console.log(colors.ok(`"${inputFilename}" 发票明细汇总搞定 ✌️️️️️✌️️️️️✌️️️️️`));
     console.log(colors.verbose(`输出文件路径: ${outputFilename}`));
   });
 }
@@ -208,17 +218,19 @@ function getInvoiceSummaryByDimensions(invoiceList) {
   return dims;
 }
 
-// 处理负票&红冲，将负票和对应的正票设置为 null
-// return 负票和红冲 orderId list
+// 处理红冲，将负票和对应的正票设置为 null
+// @return 匹配上的红冲和不匹配的红冲 orderList
+// 能匹配的红冲通常是重新变更单位开票的情况，不匹配的红冲通常是退款、预开票未交钱的情况
 function dealWithNegativeInvoice(invoiceList) {
   const negativeList = invoiceList.filter(x => x.invoiceValue < 0);
-  const negativeMatchOrderIdList = [];
+  const negativeMatchOrderList = [];
   for(let i = 0; i < negativeList.length; i++) {
     const it = negativeList[i];
-    const findIndex = invoiceList.findIndex(x => x && x.orderId === it.orderId && Math.abs(x.invoiceValue + it.invoiceValue) < 1e-6);
+    // 没有订单号是预开票未交钱的情况，属于不匹配的情况
+    const findIndex = it.orderId ? invoiceList.findIndex(x => x && x.orderId === it.orderId && Math.abs(x.invoiceValue + it.invoiceValue) < 1e-6) : -1;
     if (findIndex > -1) {
       // 记录能匹配的
-      negativeMatchOrderIdList.push(it.orderId);
+      negativeMatchOrderList.push(it);
       // 匹配负票的正票不计算到结果中，去掉
       invoiceList[findIndex] = null;
       negativeList[i] = null;
@@ -233,15 +245,16 @@ function dealWithNegativeInvoice(invoiceList) {
   });
 
   return {
-    negativeMatchOrderIdList,
-    negativeUnmatchOrderIdList: negativeList.filter(Boolean).map(it => it.orderId)
+    negativeMatchOrderList,
+    negativeUnmatchOrderList: negativeList.filter(Boolean)
   };
 }
 
 // 获取发票信息列表，去除无效数据
-function parseInvoiceData(invoiceList, headerMap, thisMonth) {
+function parseInvoiceData(invoiceList, headerMap) {
   // 日期 regexp
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  // 记录订单类型不在预定义集合中的
   const unpredefinedOrderTypeSet = new Set();
 
   const filterList = [];
@@ -259,7 +272,10 @@ function parseInvoiceData(invoiceList, headerMap, thisMonth) {
       return;
     }
 
-    const orderType = (b[headerMap.orderType] || '').replace(/\s/g, '');
+    let orderType = (b[headerMap.orderType] || '').replace(/\s/g, '');
+    if (/^\d+秀点$/.test(orderType)) {
+      orderType = '秀点';
+    }
 
     // 非已定义的订单类型给出 warning
     if (!(orderType in invoiceSummaryOrderTypeOrderMap)) {
