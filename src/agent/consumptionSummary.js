@@ -6,6 +6,9 @@ const {
 // 获取指定月份的代理商操作日志（max)
 function parseAgentLogData(agentLogList, headerMap, yearMonth) {
   return agentLogList.reduce((a, b) => {
+    // 空行
+    if (b.length === 0) return a;
+
     const logDate = getYYYYMMDDDateStr(b[headerMap.logDate]);
 
     if (logDate.slice(0, 7) > yearMonth) {
@@ -46,6 +49,9 @@ function parseAgentLogData(agentLogList, headerMap, yearMonth) {
 // 获取指定月份的代理商（消耗）订单数据
 function parseAgentOrderData(agentOrderList, headerMap, yearMonth) {
   const agentOrderData = agentOrderList.reduce((a, b) => {
+    // 空行
+    if (b.length === 0) return a;
+
     const account = b[headerMap.account];
     const dateStr = getYYYYMMDDDateStr(b[headerMap.orderDate]);
 

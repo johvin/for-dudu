@@ -4,6 +4,9 @@ const { toFixed } = require('../utils');
 // containNote: 是否包含“小记”列
 function parseAdvancePaymentData(advancePaymentList, headerMap, containNote) {
   return advancePaymentList.reduce((a, b) => {
+    // 空行
+    if (b.length === 0) return a;
+
     // 不包含“小记”列 or 只提取“小记”所在行数据
     if (!containNote || b[headerMap.note] === '小计') {
       a.push({
