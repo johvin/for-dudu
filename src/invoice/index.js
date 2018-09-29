@@ -7,9 +7,9 @@ const {
   getYYYYMMDDDateStr,
 } = require('../utils');
 
-const rootDir = '/Users/nilianzhu/Documents/财务/例子-nlz/8月';
+const rootDir = '/Users/nilianzhu/Documents/财务/发票/9月';
 // 当月 key
-const thisMonth = '2018-08';
+const thisMonth = '2018-09';
 // 上个月 key
 const lastMonth = ((d) => (d.setMonth(d.getMonth() - 1), d.toISOString().slice(0, 7)))(new Date(thisMonth));
 // 上个月之前的月份 key
@@ -18,8 +18,8 @@ const monthBeforeLast = 'monthBeforeLast';
 const noDate = 'noDate';
 
 const inputFilenames = [
-  '2018.08月发票开具明细表-成都(3).xlsx',
-  '2018.08月发票开具明细表（北京）.xlsx',
+  '2018.09月发票开具明细表-成都(3).xlsx',
+  // '2018.08月发票开具明细表（北京）.xlsx',
 ];
 
 // 发票 header map
@@ -40,7 +40,7 @@ const invoiceSummaryDateTypeMap = {
   [thisMonth]: '当月',
   [lastMonth]: '上个月',
   [monthBeforeLast]: '前期',
-  [noDate]: '空日期'
+  [noDate]: '空日期' // 空日期代表预开票
 };
 
 // 支付类型识别 regexp
@@ -126,7 +126,7 @@ function genInvoiceDetailSummaryReport(invoiceSummary, negativeListObj, inputFil
 // 获取汇总报告的 excel 数据
 function getInvoiceSummaryReportData(invoiceSummary) {
   const data = [];
-  for(let platform in invoiceSummary) {
+  for(let platform in invoiceSummary) { // 平台是支付方式
     const d1 = invoiceSummary[platform];
     for (let date of Object.keys(invoiceSummaryDateTypeMap)) {
       if (date in d1) {
@@ -181,12 +181,25 @@ function getInvoiceSummaryReportData(invoiceSummary) {
 }
 
 // 计算不同维度的开票明细总计
+// 数据格式：
+// {
+//   '微信': {
+//     [thisMonth]: {
+//       '秀点': {
+//         invoiceValue: 0,
+//         noTaxInvoiceValue: 0,
+//         invoiceTax: 0
+//       }
+//     }
+//   }
+// }
 function getInvoiceSummaryByDimensions(invoiceList) {
   const dims = {};
 
   invoiceList.forEach((invoice) => {
     if (!invoice) return;
 
+    // 支付类型作为一级 key
     if (!(invoice.paymentType in dims)) {
       dims[invoice.paymentType] = {};
     }
@@ -194,12 +207,14 @@ function getInvoiceSummaryByDimensions(invoiceList) {
     const dim1 = dims[invoice.paymentType];
     const dateType = getDateType(invoice.orderDate);
 
+    // 日期类型作为二级 key
     if (!(dateType in dim1)) {
       dim1[dateType] = {};
     }
 
     const dim2 = dim1[dateType];
 
+    // 订单类型作为三级 key
     if (!(invoice.orderType in dim2)) {
       dim2[invoice.orderType] = {
         invoiceValue: 0,
