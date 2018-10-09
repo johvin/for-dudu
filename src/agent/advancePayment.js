@@ -9,14 +9,20 @@ function parseAdvancePaymentData(advancePaymentList, headerMap, containNote) {
 
     // 不包含“小记”列 or 只提取“小记”所在行数据
     if (!containNote || b[headerMap.note] === '小计') {
-      a.push({
-        id: parseInt(b[headerMap.id], 10),
-        name: ('' + b[headerMap.companyName]).trim(),
-        jieMoney: parseFloat(b[headerMap.jieMoney]),
-        daiMoney: parseFloat(b[headerMap.daiMoney]),
-        direction: b[headerMap.direction],
-        remaining: parseFloat(b[headerMap.remaining])
-      });
+      const id = parseInt(b[headerMap.id], 10);
+
+      if (isNaN(id)) {
+        console.warn('record with invalid id: ', b);
+      } else {
+        a.push({
+          id,
+          name: ('' + b[headerMap.companyName]).trim(),
+          jieMoney: parseFloat(b[headerMap.jieMoney]),
+          daiMoney: parseFloat(b[headerMap.daiMoney]),
+          direction: b[headerMap.direction],
+          remaining: parseFloat(b[headerMap.remaining])
+        });
+      }
     }
 
     return a;
