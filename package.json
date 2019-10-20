@@ -5,6 +5,7 @@
   "scripts": {
     "agent": "node src/agent/index.js",
     "invoice": "node src/invoice/index.js",
+    "marketing": "node src/marketing/index.js",
     "payment": "node src/payment.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

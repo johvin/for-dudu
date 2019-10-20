@@ -1,15 +1,14 @@
 const fs = require('fs');
-const path = require('path');
-const xlsx = require('node-xlsx');
+const path = require('path'); const xlsx = require('node-xlsx');
 require('../colors');
 const {
   toFixed,
   getYYYYMMDDDateStr,
 } = require('../utils');
 
-const rootDir = '/Users/nilianzhu/Documents/财务/发票/9月';
+const rootDir = '/Users/johvin/Documents/财务/发票/3月';
 // 当月 key
-const thisMonth = '2018-09';
+const thisMonth = '2019-03';
 // 上个月 key
 const lastMonth = ((d) => (d.setMonth(d.getMonth() - 1), d.toISOString().slice(0, 7)))(new Date(thisMonth));
 // 上个月之前的月份 key
@@ -18,7 +17,7 @@ const monthBeforeLast = 'monthBeforeLast';
 const noDate = 'noDate';
 
 const inputFilenames = [
-  '2018.09月发票开具明细表-成都(3).xlsx',
+  '2019.03开票统计（北京）.xlsx',
   // '2018.08月发票开具明细表（北京）.xlsx',
 ];
 
