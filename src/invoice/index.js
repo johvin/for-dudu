@@ -6,9 +6,9 @@ const {
   getYYYYMMDDDateStr,
 } = require('../utils');
 
-const rootDir = '/Users/johvin/Documents/财务/发票/3月';
+const rootDir = '/Users/nilianzhu/Documents/财务/发票/11月';
 // 当月 key
-const thisMonth = '2019-03';
+const thisMonth = '2019-11';
 // 上个月 key
 const lastMonth = ((d) => (d.setMonth(d.getMonth() - 1), d.toISOString().slice(0, 7)))(new Date(thisMonth));
 // 上个月之前的月份 key
@@ -17,8 +17,7 @@ const monthBeforeLast = 'monthBeforeLast';
 const noDate = 'noDate';
 
 const inputFilenames = [
-  '2019.03开票统计（北京）.xlsx',
-  // '2018.08月发票开具明细表（北京）.xlsx',
+  '2019.11开票统计（北京）_exception.xlsx',
 ];
 
 // 发票 header map
@@ -308,8 +307,22 @@ function parseInvoiceData(invoiceList, headerMap) {
 
     if (typeof record.orderDate === 'number') {
       record.orderDate = getYYYYMMDDDateStr(record.orderDate);
-    } else if (typeof record.orderDate === 'string' && dateRe.test(record.orderDate.trim())) {
-      record.orderDate = record.orderDate.trim();
+    } else if (typeof record.orderDate === 'string') {
+      const t = record.orderDate.trim();
+      if (dateRe.test(t)) {
+        record.orderDate = t;
+      } else {
+        const dateArr = t.split(' ').filter(x => dateRe.test(x.trim()));
+        if (dateArr.length === 0) {
+          console.error(colors.error(`日期格式错误, row: ${index + 1}`), typeof record.orderDate, record.orderDate);
+          throw new Error(`日期格式错误, row: ${index + 1}`);
+        }
+        record.orderDate = dateArr[0];
+        if (dateArr.length > 1) {
+          console.warn(colors.warn(`多个日期，row: ${index + 1}`), record.orderDate);
+        }
+
+      }
     } else if (record.orderDate === null || record.orderDate === undefined) {
       // 空日期一般是预开票或代理商消耗（对上月消费的统一开票），两者都不存在实际订单
       record.orderDate = null;

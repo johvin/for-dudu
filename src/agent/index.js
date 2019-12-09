@@ -15,13 +15,13 @@ const {
   getAdvancePaymentCheckData,
 } = require('./advancePayment');
 
-const rootDir = '/Users/nilianzhu/Documents/财务/代理商报表/7月';
-const yearMonth = '2018-07';
+const rootDir = '/Users/nilianzhu/Documents/财务/代理商报表/11月';
+const yearMonth = '2018-11';
 
 const filenames = {
   input: [
-    'max.xls',
-    '代理商订单.xlsx',
+    '11月代理商操作日志.xls',
+    '11月代理商基础服务.xlsx',
     'U8.xls',
   ],
   output: [
@@ -115,6 +115,6 @@ function printMeta() {
 
 
 printMeta();
-// genAgentConsumptionSummaryReport();
+genAgentConsumptionSummaryReport();
 
-genConsumptionAndPaymentReport();
+//genConsumptionAndPaymentReport();
