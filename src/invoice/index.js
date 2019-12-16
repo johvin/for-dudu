@@ -1,5 +1,6 @@
 const fs = require('fs');
-const path = require('path'); const xlsx = require('node-xlsx');
+const path = require('path');
+const xlsx = require('node-xlsx');
 require('../colors');
 const {
   toFixed,
@@ -77,7 +78,7 @@ function process(inputFilename) {
   console.log(colors.verbose(`\n正在处理 "${colors.green(inputFilename)}" ...\n`));
 
   const filePath = path.resolve(rootDir, inputFilename);
-  
+
   if (!fs.existsSync(filePath)) {
     throw new Error(`文件不存在 => ${filePath}`);
   }
@@ -109,7 +110,7 @@ function genInvoiceDetailSummaryReport(invoiceSummary, negativeListObj, inputFil
     name: '匹配红冲',
     data: matchData
   }]);
-  
+
   const ext = path.extname(inputFilename);
   const outputFilename = `${path.basename(inputFilename, ext)}-汇总${ext}`;
 
@@ -134,7 +135,7 @@ function getInvoiceSummaryReportData(invoiceSummary) {
 
         // 要显示的订单类型 columns，显示所有已定义类型和未定义但存在的类型
         const orderTypeArr = Object.keys(Object.assign({}, invoiceSummaryOrderTypeOrderMap, d2));
-        
+
         orderTypeArr.sort((a, b) => {
           if (a in invoiceSummaryOrderTypeOrderMap && b in invoiceSummaryOrderTypeOrderMap) {
             return invoiceSummaryOrderTypeOrderMap[a] - invoiceSummaryOrderTypeOrderMap[b];
@@ -294,7 +295,7 @@ function parseInvoiceData(invoiceList, headerMap) {
     if (!(orderType in invoiceSummaryOrderTypeOrderMap)) {
       unpredefinedOrderTypeSet.add(orderType);
     }
-  
+
     const record = {
       orderId: b[headerMap.orderId],
       orderDate: b[headerMap.orderDate],
