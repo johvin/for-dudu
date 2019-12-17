@@ -5,6 +5,7 @@ function toFixed(dividend, divisor, n = 2) {
 }
 
 // 将数字格式的 excel date 转换成 js 中的年月日
+// n 表示距离 1900-01-00 的天数
 function parseYYYYMMDDFromExcelDateNumber(n) {
   if (typeof n !== 'number' || isNaN(n) || n < 0) {
     throw new Error('invalid Excel Date Number "' + n + '"');
@@ -23,21 +24,28 @@ function parseYYYYMMDDFromExcelDateNumber(n) {
 
 // 获取 YYYY-MM-DD 格式（标准格式）的日期字符串
 function getYYYYMMDDDateStr(dStr) {
-  switch (typeof dStr) {
-    case 'string':
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
-        return dStr;
-      }
-      if (/^\d{4}.\d{1,2}.\d{1,2}$/.test(dStr)) {
-        return dStr.replace(/^(\d{4}).(\d{1,2}).(\d{1,2})$/, function (s0, s1, s2, s3) {
-          return `${s1}-${s2.length === 1 ? '0' + s2 : s2}-${s3.length === 1 ? '0' + s3 : s3}`;
-        });
-      }
-      throw new Error('invalid date string: ' + dStr);
-    case 'number':
-      return parseYYYYMMDDFromExcelDateNumber(dStr);
-    default:
-      throw new Error('invalid date string or date number: ' + dStr);
+  const getYMDByDate = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+
+  if (typeof dStr === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}/.test(dStr)) {
+      return dStr.slice(0, 10);
+    }
+    if (/^\d{4}.\d{1,2}.\d{1,2}/.test(dStr)) {
+      return dStr.replace(/^(\d{4}).(\d{1,2}).(\d{1,2})/, function (s0, s1, s2, s3) {
+        return `${s1}-${s2.padStart(2, '0')}-${s3.padStart(2, '0')}`;
+      }).slice(0, 10);
+    }
+    if (/^\d+$/.test(dStr)) {
+      const d = Number(dStr);
+      return d > 1e8 ? getYMDByDate(new Date(d)) : parseYYYYMMDDFromExcelDateNumber(d);
+    }
+    throw new Error('invalid date string: ' + dStr);
+  } else if (typeof dStr === 'number') {
+    return parseYYYYMMDDFromExcelDateNumber(dStr);
+  } else if (typeof dStr === 'object' && dStr && dStr.constructor === Date) {
+    return getYMDByDate(dStr);
+  } else {
+    throw new Error('invalid date string or date number: ' + dStr);
   }
 };
 
