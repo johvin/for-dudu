@@ -52,13 +52,20 @@ async function diff(filename1, filename2) {
   const outputFilename = `${path.basename(filename1, path.extname(filename1))}_based_diff.xlsx`;
 
   const file1OrderIdMap = await getOrderIdListInFile1(filename1);
-  const diffs = [];
+  const diffs = new Map();
 
   await diffOrderIdInFile2(filename2, (orderId, dateStr) => {
     const monthStr = dateStr.slice(0, 7);
 
+    const addDiff = () => {
+      if (!diffs.has(monthStr)) {
+        diffs.set(monthStr, []);
+      }
+      diffs.get(monthStr).push([orderId, dateStr]);
+    };
+
     if (!file1OrderIdMap.has(monthStr)) {
-      diffs.push([orderId, dateStr]);
+      addDiff();
     } else {
       const derivedMonthStrArr = ((monthStr, nextCnt) => {
         const arr = [ monthStr ];
@@ -68,9 +75,10 @@ async function diff(filename1, filename2) {
           arr.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
         }
         return arr;
-      })(monthStr, 2);
-      if (!derivedMonthStrArr.some(monthStr => file1OrderIdMap.has(monthStr) ? file1OrderIdMap.get(monthStr).includes(orderId) : false)) {
-        diffs.push([orderId, dateStr]);
+      })(monthStr, 0);
+      const findedIndex = derivedMonthStrArr.findIndex(monthStr => file1OrderIdMap.has(monthStr) ? file1OrderIdMap.get(monthStr).includes(orderId) : false);
+      if (findedIndex === -1) {
+        addDiff();
       }
     }
   }, (err) => {
@@ -78,9 +86,13 @@ async function diff(filename1, filename2) {
     console.log('current diffs: ', diffs);
   });
 
-  await output(diffs, outputFilename);
-  printRunTime();
-  printDiffMemory();
+  // console.log('diff months', diffs.keys())
+  // console.log('lookup data:');
+  // for (let [times, count] of finded) {
+  //   console.log(`lookup times ${times + 1}: ${count} items`);
+  // }
+
+  await outputDiff(diffs, outputFilename);
 }
 
 function getOrderIdListInFile1(filename) {
@@ -108,9 +120,9 @@ function getOrderIdListInFile1(filename) {
           printRunTime();
         }
 
-        if (lines < 10) {
-          console.log('row', row);
-        }
+        // if (lines < 10) {
+        //   console.log('row', row);
+        // }
 
         const monthStr = getYYYYMMDDDateStr(row[1]).slice(0, 7);
 
@@ -168,7 +180,7 @@ function diffOrderIdInFile2(filename, diffFn, errorHandler) {
         if (lines % 10000 === 0) {
           console.log(`progress: row ${lines}`);
           printRunTime();
-          console.log(row[1], dateStr, row);
+          // console.log(row[1], dateStr, row);
         }
 
         if (diffFn) {
@@ -197,14 +209,21 @@ function diffOrderIdInFile2(filename, diffFn, errorHandler) {
   });
 }
 
-function output(data, outputFilename) {
-  console.log(`output data count: ${data.length}`);
-  console.log(JSON.stringify(data.slice(0, 20)));
+function outputDiff(diffData, outputFilename) {
+  const sheets = [];
+  console.log('diff data:');
+  let total = 0;
+  for(let [monthStr, arr] of diffData) {
+    console.log(`${monthStr}: ${arr.length}`);
+    total += arr.length;
+    sheets.push({
+      name: monthStr,
+      data: arr,
+    });
+  }
+  console.log(`total diff count: ${total}`);
 
-  const buffer = xlsxSync.build([{
-    name: 'diff',
-    data,
-  }]);
+  const buffer = xlsxSync.build(sheets);
 
   return new Promise((resolve) => {
     fs.createWriteStream(path.resolve(rootDir, outputFilename)).end(buffer, resolve);
