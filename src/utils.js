@@ -49,6 +49,14 @@ function getYYYYMMDDDateStr(dStr) {
   }
 };
 
+function updateProgress(txt) {
+  const rl = require('readline');
+  rl.moveCursor(process.stdout, 0, -1);
+  rl.clearLine(process.stdout, 0);
+  console.log(txt);
+}
+
 exports.toFixed = toFixed;
 exports.parseYYYYMMDDFromExcelDateNumber = parseYYYYMMDDFromExcelDateNumber;
 exports.getYYYYMMDDDateStr = getYYYYMMDDDateStr;
+exports.updateProgress = updateProgress;
