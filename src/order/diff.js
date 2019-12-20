@@ -6,13 +6,22 @@ require('../colors');
 const {
   toFixed,
   getYYYYMMDDDateStr,
+  getYYYYMMDateStr,
   updateProgress,
 } = require('../utils');
 
 const rootDir = '/Users/nilianzhu/Documents/财务/订单/';
 
-const filename1 = '附件：2015-2017秀点订单.xlsx';
-const filename2 = '2017年及之前其他年份的秀点收入核算表.xlsx';
+const filename1 = '创意云月明细（2018.01-2019.05）.xlsx';
+const filename2 = 'CYY-1-2 会员核算订单表内逻辑测试.xlsx';
+const file1Header = {
+  orderId: 3,
+  orderDate: 0,
+};
+const file2Header = {
+  orderId: 2,
+  orderDate: 3,
+};
 
 const getRunTime = ((start) => () => {
   const diff = process.hrtime(start);
@@ -72,8 +81,13 @@ async function diff(filename1, filename2) {
 
   const outputFilename = `${path.basename(filename1, path.extname(filename1))}_based_diff.xlsx`;
 
-  const file1OrderIdMap = await getOrderIdListInFile1(filename1);
+  const file1OrderIdMap = await getOrderIdListInFile1(filename1, file1Header);
 
+  for(let [month, arr] of file1OrderIdMap) {
+    console.log(month, arr.length);
+  }
+
+  // sort for binary search
   for(let [, arr] of file1OrderIdMap) {
     arr.sort((a, b) => {
       if (a.length < b.length) {
@@ -87,16 +101,19 @@ async function diff(filename1, filename2) {
   }
   printRunTime('sort file1OrderList');
 
+  const orderDateRange = Array.from(file1OrderIdMap.keys()).sort();
+
   const diffs = new Map();
 
-  await diffOrderIdInFile2(filename2, (orderId, dateStr) => {
-    const monthStr = dateStr.slice(0, 7);
+  await diffOrderIdInFile2(filename2, file2Header, (orderId, monthStr) => {
+    // file1 中没有的日期不 check
+    if (!orderDateRange.includes(monthStr)) return;
 
     const addDiff = () => {
       if (!diffs.has(monthStr)) {
         diffs.set(monthStr, []);
       }
-      diffs.get(monthStr).push([orderId, dateStr]);
+      diffs.get(monthStr).push([orderId, monthStr]);
     };
 
     if (!file1OrderIdMap.has(monthStr)) {
@@ -118,7 +135,7 @@ async function diff(filename1, filename2) {
       //   addDiff();
       // }
 
-      (() => {
+      (function binarySearch() {
         const arr = file1OrderIdMap.get(monthStr);
         
         let finded = false;
@@ -154,18 +171,34 @@ async function diff(filename1, filename2) {
     console.log('current diffs: ', diffs);
   });
 
-  // console.log('diff months', diffs.keys())
-  // console.log('lookup data:');
-  // for (let [times, count] of finded) {
-  //   console.log(`lookup times ${times + 1}: ${count} items`);
-  // }
+  const dateRange = orderDateRange.reduce((a, b) => {
+    if (a.length === 0) {
+      a.push([b, b]);
+    } else {
+      const cur = a[a.length - 1];
+      const prevDate = new Date(cur[1]);
+      prevDate.setMonth(prevDate.getMonth() + 1);
+      const curDate = new Date(b);
 
-  for (let it of diffs) {
-    await outputDiff([it], outputFilename.replace('.xlsx', `_${it[0]}.xlsx`));
-  }
+      if (prevDate.getMonth() === curDate.getMonth()) {
+        cur[1] = b;
+      } else {
+        a.push([b, b]);
+      }
+    }
+    return a;
+  }, []);
+
+  console.log('check date range: ', dateRange.map(r => r[0] === r[1] ? r[0] : `${r[0]} - ${r[1]}`).join(', '));
+
+  await outputDiff(diffs, outputFilename);
+
+  // for (let it of diffs) {
+  //   await outputDiff([it], outputFilename.replace('.xlsx', `_${it[0]}.xlsx`));
+  // }
 }
 
-function getOrderIdListInFile1(filename) {
+function getOrderIdListInFile1(filename, header) {
   const filePath = path.resolve(rootDir, filename);
   if (!fs.existsSync(filePath)) {
     throw new Error(`文件不存在 => ${filePath}`);
@@ -195,13 +228,19 @@ function getOrderIdListInFile1(filename) {
         //   console.log('row', row);
         // }
 
-        const monthStr = getYYYYMMDDDateStr(row[1]).slice(0, 7);
+        let monthStr = '';
+
+        try {
+          monthStr = getYYYYMMDDDateStr(row[ header.orderDate ]).slice(0, 7);
+        } catch(e) {
+          monthStr = getYYYYMMDateStr(row[ header.orderDate ]);
+        }
 
         if (!data.has(monthStr)) {
           data.set(monthStr, []);
         }
 
-        data.get(monthStr).push('' + row[0]);
+        data.get(monthStr).push('' + row[ header.orderId ]);
       } catch(e) {
         console.log(`lines ${lines} error`);
         console.log(e);
@@ -216,9 +255,7 @@ function getOrderIdListInFile1(filename) {
     })
     .on('end', function (err) {
       console.log('eof total', lines);
-      for(let [month, arr] of data) {
-        console.log(month, arr.length);
-      }
+      
       printRunTime('read end');
       printDiffMemory();
       res(data);
@@ -226,7 +263,7 @@ function getOrderIdListInFile1(filename) {
   });
 }
 
-function diffOrderIdInFile2(filename, diffFn, errorHandler) {
+function diffOrderIdInFile2(filename, header, diffFn, errorHandler) {
   const filePath = path.resolve(rootDir, filename);
   if (!fs.existsSync(filePath)) {
     throw new Error(`文件不存在 => ${filePath}`);
@@ -246,16 +283,22 @@ function diffOrderIdInFile2(filename, diffFn, errorHandler) {
     .on('row', function (row) {
       try {
         lines++;
-        const dateStr = getYYYYMMDDDateStr(row[2]);
 
         if (lines % 10000 === 0) {
           const t = getRunTime();
           updateProgress(`progress: row ${lines} (${t.min > 0 ? `${t.min}min` : ''}${t.s}s${t.ms}ms)`);
-          // console.log(row[1], dateStr, row);
+        }
+
+        let monthStr = '';
+
+        try {
+          monthStr = getYYYYMMDDDateStr(row[ header.orderDate ]).slice(0, 7);
+        } catch(e) {
+          monthStr = getYYYYMMDateStr(row[ header.orderDate ]);
         }
 
         if (diffFn) {
-          diffFn('' + row[1], dateStr);
+          diffFn('' + row[ header.orderId ], monthStr);
         }
       } catch(e) {
         console.log(`lines ${lines} error`);
