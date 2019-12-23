@@ -79,8 +79,102 @@ function updateProgress(txt) {
   console.log(txt);
 }
 
+function strBinarySearch(arr, target) {
+  let left = 0, right = arr.length - 1, mid;
+
+  do {
+    mid = (left + right) >> 1;
+    if (arr[mid] === target) {
+      break;
+    }
+
+    if (arr[mid].length === target.length) {
+      if (arr[mid] < target) {
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    } else if (arr[mid].length < target.length) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  } while (left <= right);
+
+  return left > right ? -1 : mid;
+}
+
+function readFile(filePath, rowHandler) {
+  const fs = require('fs');
+  const path = require('path');
+  const { XLSX } = require('xlsx-extract');
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`文件不存在 => ${filePath}`);
+  }
+
+  console.log(colors.verbose(`\n正在读取 ${path.basename(filePath)} 数据 ...\n`));
+
+  return new Promise((res, rej) => {
+    let curSheet;
+    let header;
+    let lines = 0;
+
+    new XLSX().extract(filePath, { parser: 'expat', sheet_nr: 1, ignore_header: 1, convert_values: { dates: false } })
+      .on('sheet', function (sheet) {
+        console.log('sheet', sheet[0]);  //sheet is array [sheetname, sheetid, sheetnr]
+        printRunTime('file1 sheet')
+        console.log();
+      })
+      .on('row', function (row) {
+        try {
+          if (++lines % 1000 === 0) {
+            const t = getRunTime();
+            updateProgress(`progress: row ${lines} (${t.min > 0 ? `${t.min}min` : ''}${t.s}s${t.ms}ms)`);
+          }
+
+          // if (lines < 10) {
+          //   console.log('row', row);
+          // }
+
+          let monthStr = '';
+
+          try {
+            monthStr = getYYYYMMDDDateStr(row[header.orderDate]).slice(0, 7);
+          } catch (e) {
+            monthStr = getYYYYMMDateStr(row[header.orderDate]);
+          }
+
+          if (!data.has(monthStr)) {
+            data.set(monthStr, []);
+          }
+
+          data.get(monthStr).push('' + row[header.orderId]);
+        } catch (e) {
+          console.log(`lines ${lines} error`);
+          console.log(e);
+          process.exit(1);
+        }
+      })
+      .on('error', (err) => {
+        console.log(data.keys());
+        console.log(err);
+        rej(err);
+        process.exit(1);
+      })
+      .on('end', function (err) {
+        console.log('eof total', lines);
+
+        printRunTime('read end');
+        printDiffMemory();
+        res(data);
+      });
+  });
+}
+
 exports.toFixed = toFixed;
 exports.parseYYYYMMDDFromExcelDateNumber = parseYYYYMMDDFromExcelDateNumber;
 exports.getYYYYMMDDDateStr = getYYYYMMDDDateStr;
 exports.getYYYYMMDateStr = getYYYYMMDateStr;
 exports.updateProgress = updateProgress;
+exports.strBinarySearch = strBinarySearch;

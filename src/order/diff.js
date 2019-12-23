@@ -8,9 +8,10 @@ const {
   getYYYYMMDDDateStr,
   getYYYYMMDateStr,
   updateProgress,
+  strBinarySearch,
 } = require('../utils');
 
-const rootDir = '/Users/nilianzhu/Documents/财务/订单/';
+const rootDir = '/Users/johvin/Documents/财务/订单/';
 
 const filename1 = '创意云月明细（2018.01-2019.05）.xlsx';
 const filename2 = 'CYY-1-2 会员核算订单表内逻辑测试.xlsx';
@@ -23,8 +24,8 @@ const file2Header = {
   orderDate: 3,
 };
 
-const getRunTime = ((start) => () => {
-  const diff = process.hrtime(start);
+const getRunTime = ((init) => (start) => {
+  const diff = process.hrtime(start || init);
   let min = 0;
   let s = diff[0];
   if (s >= 60) {
@@ -83,8 +84,10 @@ async function diff(filename1, filename2) {
 
   const file1OrderIdMap = await getOrderIdListInFile1(filename1, file1Header);
 
-  for(let [month, arr] of file1OrderIdMap) {
-    console.log(month, arr.length);
+  const orderDateRange = Array.from(file1OrderIdMap.keys()).sort();
+
+  for(let month of orderDateRange) {
+    console.log(month, file1OrderIdMap.get(month).length);
   }
 
   // sort for binary search
@@ -101,77 +104,7 @@ async function diff(filename1, filename2) {
   }
   printRunTime('sort file1OrderList');
 
-  const orderDateRange = Array.from(file1OrderIdMap.keys()).sort();
-
-  const diffs = new Map();
-
-  await diffOrderIdInFile2(filename2, file2Header, (orderId, monthStr) => {
-    // file1 中没有的日期不 check
-    if (!orderDateRange.includes(monthStr)) return;
-
-    const addDiff = () => {
-      if (!diffs.has(monthStr)) {
-        diffs.set(monthStr, []);
-      }
-      diffs.get(monthStr).push([orderId, monthStr]);
-    };
-
-    if (!file1OrderIdMap.has(monthStr)) {
-      addDiff();
-    } else {
-      // derived logic
-      // const derivedMonthStrArr = ((monthStr, nextCnt) => {
-      //   const arr = [ monthStr ];
-      //   const date = new Date(monthStr);
-      //   for(let i = 0; i < nextCnt; i++) {
-      //     date.setMonth(date.getMonth() + 1);
-      //     arr.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-      //   }
-      //   return arr;
-      // })(monthStr, 0);
-      // const findedIndex = derivedMonthStrArr.findIndex(monthStr => file1OrderIdMap.has(monthStr) ? file1OrderIdMap.get(monthStr).includes(orderId) : false);
-      //
-      // if (findedIndex === -1) {
-      //   addDiff();
-      // }
-
-      (function binarySearch() {
-        const arr = file1OrderIdMap.get(monthStr);
-        
-        let finded = false;
-        let left = 0, right = arr.length - 1, mid;
-
-        do {
-          mid = (left + right) >> 1;
-          if (arr[mid] === orderId) {
-            finded = true;
-            break;
-          }
-
-          if (arr[mid].length === orderId.length) {
-            if (arr[mid] < orderId) {
-              left = mid + 1;
-            } else {
-              right = mid - 1;
-            }
-          } else if (arr[mid].length < orderId.length) {
-            left = mid + 1;
-          } else {
-            right = mid - 1;
-          }
-        } while (left <= right);
-
-        if (!finded) {
-          addDiff();
-        }
-      })();
-    }
-  }, (err) => {
-    console.log('err', err);
-    console.log('current diffs: ', diffs);
-  });
-
-  const dateRange = orderDateRange.reduce((a, b) => {
+  const continousDateRange = orderDateRange.reduce((a, b) => {
     if (a.length === 0) {
       a.push([b, b]);
     } else {
@@ -189,7 +122,59 @@ async function diff(filename1, filename2) {
     return a;
   }, []);
 
-  console.log('check date range: ', dateRange.map(r => r[0] === r[1] ? r[0] : `${r[0]} - ${r[1]}`).join(', '));
+  const diffRange = continousDateRange.map(r => r[0] === r[1] ? r[0] : `${r[0]} - ${r[1]}`).join(', ');
+
+  const diffs = new Map();
+
+  diffs.set('说明', [ ['检查时间范围'], [diffRange] ]);
+
+  await diffOrderIdInFile2(filename2, (row, lineNo, header) => {
+    let dateStr = '';
+
+    try {
+      dateStr = getYYYYMMDDDateStr(row[ file2Header.orderDate ]);
+    } catch(e) {
+      dateStr = getYYYYMMDateStr(row[ file2Header.orderDate ]);
+      if (dateStr.length === 6) {
+        dateStr += 'xx';
+      } else {
+        dateStr += dateStr[4] + 'xx';
+      }
+    }
+    const monthStr = /\d/.test(dateStr[4]) ? dateStr.slice(0, 6) : dateStr.slice(0, 7);
+
+    // file1 中没有的日期不 check
+    if (!orderDateRange.includes(monthStr)) return;
+
+    const orderId = '' + row[ file2Header.orderId ];
+
+    const addDiff = () => {
+      if (!diffs.has(monthStr)) {
+        diffs.set(monthStr, [ header ]);
+      }
+      diffs.get(monthStr).push(row);
+    };
+
+    if (!file1OrderIdMap.has(monthStr) || strBinarySearch(file1OrderIdMap.get(monthStr), orderId) === -1) {
+      addDiff();
+    }
+
+    // derived logic
+    // const derivedMonthStrArr = ((monthStr, nextCnt) => {
+    //   const arr = [ monthStr ];
+    //   const date = new Date(monthStr);
+    //   for(let i = 0; i < nextCnt; i++) {
+    //     date.setMonth(date.getMonth() + 1);
+    //     arr.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+    //   }
+    //   return arr;
+    // })(monthStr, 0);
+  }, (err) => {
+    console.log('err', err);
+    console.log('current diffs: ', diffs);
+  });
+
+  // console.log('check date range: ', diffRange);
 
   await outputDiff(diffs, outputFilename);
 
@@ -211,7 +196,7 @@ function getOrderIdListInFile1(filename, header) {
     const data = new Map();
 
     let lines = 0;
-    new XLSX().extract(filePath, { sheet_nr: 1, ignore_header: 1, convert_values: { dates: false } })
+    new XLSX().extract(filePath, { parser: 'expat', sheet_nr: 1, ignore_header: 1, convert_values: { dates: false } })
     .on('sheet', function (sheet) {
       console.log('sheet', sheet[0]);  //sheet is array [sheetname, sheetid, sheetnr]
       printRunTime('file1 sheet')
@@ -219,7 +204,7 @@ function getOrderIdListInFile1(filename, header) {
     })
     .on('row', function (row) {
       try {
-        if (++lines % 10000 === 0) {
+        if (++lines % 1000 === 0) {
           const t = getRunTime();
           updateProgress(`progress: row ${lines} (${t.min > 0 ? `${t.min}min` : ''}${t.s}s${t.ms}ms)`);
         }
@@ -255,7 +240,7 @@ function getOrderIdListInFile1(filename, header) {
     })
     .on('end', function (err) {
       console.log('eof total', lines);
-      
+
       printRunTime('read end');
       printDiffMemory();
       res(data);
@@ -263,7 +248,7 @@ function getOrderIdListInFile1(filename, header) {
   });
 }
 
-function diffOrderIdInFile2(filename, header, diffFn, errorHandler) {
+function diffOrderIdInFile2(filename, rowHandler, errorHandler) {
   const filePath = path.resolve(rootDir, filename);
   if (!fs.existsSync(filePath)) {
     throw new Error(`文件不存在 => ${filePath}`);
@@ -273,8 +258,9 @@ function diffOrderIdInFile2(filename, header, diffFn, errorHandler) {
   printDiffMemory();
 
   return new Promise((res, rej) => {
+    let tableHeader;
     let lines = 0;
-    new XLSX().extract(filePath, { sheet_nr: 1, ignore_header: 1, convert_values: { dates: false } })
+    new XLSX().extract(filePath, { parser: 'expat', sheet_nr: 1, ignore_header: 0, convert_values: { dates: false } })
     .on('sheet', function (sheet) {
       console.log('sheet', sheet[0]);  //sheet is array [sheetname, sheetid, sheetnr]
       printRunTime('file2 sheet');
@@ -282,23 +268,18 @@ function diffOrderIdInFile2(filename, header, diffFn, errorHandler) {
     })
     .on('row', function (row) {
       try {
-        lines++;
+        if (!tableHeader) {
+          tableHeader = row;
+          return;
+        }
 
-        if (lines % 10000 === 0) {
+        if (++lines % 1000 === 0) {
           const t = getRunTime();
           updateProgress(`progress: row ${lines} (${t.min > 0 ? `${t.min}min` : ''}${t.s}s${t.ms}ms)`);
         }
 
-        let monthStr = '';
-
-        try {
-          monthStr = getYYYYMMDDDateStr(row[ header.orderDate ]).slice(0, 7);
-        } catch(e) {
-          monthStr = getYYYYMMDateStr(row[ header.orderDate ]);
-        }
-
-        if (diffFn) {
-          diffFn('' + row[ header.orderId ], monthStr);
+        if (rowHandler) {
+          rowHandler(row, lines, tableHeader);
         }
       } catch(e) {
         console.log(`lines ${lines} error`);
@@ -334,7 +315,7 @@ function outputDiff(diffData, outputFilename) {
       data: arr,
     });
     if (arr.length < 10) {
-      console.log(JSON.stringify(arr));
+      console.log(JSON.stringify(arr.slice(0, 4)));
     }
   }
   console.log(`total diff count: ${total}`);
