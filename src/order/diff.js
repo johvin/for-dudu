@@ -16,12 +16,14 @@ const rootDir = '/Users/johvin/Documents/财务/订单/';
 const filename1 = '创意云月明细（2018.01-2019.05）.xlsx';
 const filename2 = 'CYY-1-2 会员核算订单表内逻辑测试.xlsx';
 const file1Header = {
+  orderId: 1,
+  orderDate: 2,
+};
+const file2HasOrderDate = false;
+const file2Header = {
   orderId: 3,
   orderDate: 0,
-};
-const file2Header = {
-  orderId: 2,
-  orderDate: 3,
+  orderStartDate: 13,
 };
 
 const getRunTime = ((init) => (start) => {
@@ -69,8 +71,8 @@ process.on('exit', (exitCode) => {
   printRunTime('exit');
   printDiffMemory();
 });
-process.on('uncaughtException', () => {
-  console.log('uncaughtException');
+process.on('uncaughtException', (err) => {
+  console.log('uncaughtException', err);
   printRunTime('uncaughtException');
   printDiffMemory();
 });
@@ -84,9 +86,9 @@ async function diff(filename1, filename2) {
 
   const file1OrderIdMap = await getOrderIdListInFile1(filename1, file1Header);
 
-  const orderDateRange = Array.from(file1OrderIdMap.keys()).sort();
+  const orderMonthRange = Array.from(file1OrderIdMap.keys()).sort();
 
-  for(let month of orderDateRange) {
+  for(let month of orderMonthRange) {
     console.log(month, file1OrderIdMap.get(month).length);
   }
 
@@ -104,7 +106,7 @@ async function diff(filename1, filename2) {
   }
   printRunTime('sort file1OrderList');
 
-  const continousDateRange = orderDateRange.reduce((a, b) => {
+  const continousDateRange = orderMonthRange.reduce((a, b) => {
     if (a.length === 0) {
       a.push([b, b]);
     } else {
@@ -125,54 +127,102 @@ async function diff(filename1, filename2) {
   const diffRange = continousDateRange.map(r => r[0] === r[1] ? r[0] : `${r[0]} - ${r[1]}`).join(', ');
 
   const diffs = new Map();
-
   diffs.set('说明', [ ['检查时间范围'], [diffRange] ]);
 
+  // 用来打印平均搜索次数
+  const derivedSearchTimes = [];
+
   await diffOrderIdInFile2(filename2, (row, lineNo, header) => {
-    let dateStr = '';
+    let orderDateStr = '';
+    let orderMonthStr = '';
+    let orderStartDateStr = '';
+    let orderStartMonthStr = '';
 
     try {
-      dateStr = getYYYYMMDDDateStr(row[ file2Header.orderDate ]);
+      orderDateStr = getYYYYMMDDDateStr(row[ file2Header.orderDate ]);
     } catch(e) {
-      dateStr = getYYYYMMDateStr(row[ file2Header.orderDate ]);
-      if (dateStr.length === 6) {
-        dateStr += 'xx';
+      orderDateStr = getYYYYMMDateStr(row[ file2Header.orderDate ]);
+      if (orderDateStr.length === 6) {
+        orderDateStr += 'xx';
       } else {
-        dateStr += dateStr[4] + 'xx';
+        orderDateStr += orderDateStr[4] + 'xx';
       }
     }
-    const monthStr = /\d/.test(dateStr[4]) ? dateStr.slice(0, 6) : dateStr.slice(0, 7);
+
+    orderMonthStr = /\d/.test(orderDateStr[4]) ? orderDateStr.slice(0, 6) : orderDateStr.slice(0, 7);
+
+    if (!file2HasOrderDate) {
+      try {
+        orderStartDateStr = getYYYYMMDDDateStr(row[ file2Header.orderStartDate ]);
+      } catch(e) {
+        orderStartDateStr = getYYYYMMDateStr(row[ file2Header.orderStartDate ]);
+        if (orderStartDateStr.length === 6) {
+          orderStartDateStr += 'xx';
+        } else {
+          orderStartDateStr += orderStartDateStr[4] + 'xx';
+        }
+      }
+
+      orderStartMonthStr = /\d/.test(orderStartDateStr[4]) ? orderStartDateStr.slice(0, 6) : orderStartDateStr.slice(0, 7);
+    }
 
     // file1 中没有的日期不 check
-    if (!orderDateRange.includes(monthStr)) return;
+    if (file2HasOrderDate && !orderMonthRange.includes(orderMonthStr)) return;
 
     const orderId = '' + row[ file2Header.orderId ];
 
     const addDiff = () => {
-      if (!diffs.has(monthStr)) {
-        diffs.set(monthStr, [ header ]);
+      if (!diffs.has(orderMonthStr)) {
+        diffs.set(orderMonthStr, [ header ]);
       }
-      diffs.get(monthStr).push(row);
+      diffs.get(orderMonthStr).push(row);
     };
 
-    if (!file1OrderIdMap.has(monthStr) || strBinarySearch(file1OrderIdMap.get(monthStr), orderId) === -1) {
-      addDiff();
+    // 只按照当前月份对比
+    if (file2HasOrderDate) {
+      if (!file1OrderIdMap.has(orderMonthStr) || strBinarySearch(file1OrderIdMap.get(orderMonthStr), orderId) === -1) {
+        addDiff();
+      }
+      return;
+    } else {
+      // derived month from earliest month
+      const derivedMonthStrArr = ((LastMonthStr) => {
+        const arr = [ LastMonthStr ];
+        const date = new Date(LastMonthStr);
+        const earliestMonth = orderMonthRange[0];
+
+        while(true) {
+          date.setMonth(date.getMonth() - 1);
+          const cur = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          if (cur < earliestMonth) {
+            break;
+          }
+          arr.push(cur);
+        }
+
+        return arr;
+      })(orderStartMonthStr);
+
+      const findedIndex = derivedMonthStrArr.findIndex(
+        monthStr => file1OrderIdMap.has(monthStr) ? strBinarySearch(file1OrderIdMap.get(monthStr), orderId) === -1 : false
+      );
+
+      if (findedIndex === -1) {
+        addDiff();
+      } else {
+        derivedSearchTimes.push(findedIndex + 1);
+      }
     }
 
-    // derived logic
-    // const derivedMonthStrArr = ((monthStr, nextCnt) => {
-    //   const arr = [ monthStr ];
-    //   const date = new Date(monthStr);
-    //   for(let i = 0; i < nextCnt; i++) {
-    //     date.setMonth(date.getMonth() + 1);
-    //     arr.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-    //   }
-    //   return arr;
-    // })(monthStr, 0);
   }, (err) => {
     console.log('err', err);
     console.log('current diffs: ', diffs);
   });
+
+  if (derivedSearchTimes.length > 0) {
+    console.log('average derived search times:', toFixed(derivedSearchTimes.reduce((a, b) => a + b, 0), derivedSearchTimes.length, 2));
+    // console.log(derivedSearchTimes.slice(0, 20))
+  }
 
   // console.log('check date range: ', diffRange);
 
