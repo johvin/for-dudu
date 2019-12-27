@@ -15,15 +15,17 @@ const rootDir = '/Users/johvin/Documents/财务/订单/';
 
 const filename1 = '创意云月明细（2018.01-2019.05）.xlsx';
 const filename2 = 'CYY-1-2 会员核算订单表内逻辑测试.xlsx';
+
+// file2 是否有订单日期
+const file2HasOrderDate = true;
 const file1Header = {
-  orderId: 1,
-  orderDate: 2,
-};
-const file2HasOrderDate = false;
-const file2Header = {
   orderId: 3,
   orderDate: 0,
-  orderStartDate: 13,
+};
+const file2Header = {
+  orderId: 2,
+  orderDate: 3,
+  orderStartDate: 0,
 };
 
 const getRunTime = ((init) => (start) => {
@@ -127,7 +129,6 @@ async function diff(filename1, filename2) {
   const diffRange = continousDateRange.map(r => r[0] === r[1] ? r[0] : `${r[0]} - ${r[1]}`).join(', ');
 
   const diffs = new Map();
-  diffs.set('说明', [ ['检查时间范围'], [diffRange] ]);
 
   // 用来打印平均搜索次数
   const derivedSearchTimes = [];
@@ -185,26 +186,42 @@ async function diff(filename1, filename2) {
       }
       return;
     } else {
-      // derived month from earliest month
-      const derivedMonthStrArr = ((LastMonthStr) => {
-        const arr = [ LastMonthStr ];
-        const date = new Date(LastMonthStr);
+      // derived month from earliest month,
+      // 月末几天的订单在另一个表中可能会被统计到下个月，因此需要 nextCnt = 1
+      const derivedMonthStrArr = ((curMonthStr, nextCnt) => {
+        const arr = [];
         const earliestMonth = orderMonthRange[0];
 
-        while(true) {
-          date.setMonth(date.getMonth() - 1);
+        const date = new Date(curMonthStr);
+        if (nextCnt >= 0) {
+          // 先查询当前月，提高效率
+          arr.push( curMonthStr );
+        }
+        if (nextCnt > 0) {
+          date.setMonth(date.getMonth() + nextCnt);
+        }
+
+        do {
           const cur = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
           if (cur < earliestMonth) {
             break;
           }
-          arr.push(cur);
-        }
+
+          if (nextCnt > 0) {
+            if (!arr.includes(cur)) {
+              arr.push(cur);
+            }
+          } else {
+            arr.push(cur);
+          }
+          date.setMonth(date.getMonth() - 1);
+        } while(true);
 
         return arr;
-      })(orderStartMonthStr);
+      })(orderStartMonthStr, 1);
 
       const findedIndex = derivedMonthStrArr.findIndex(
-        monthStr => file1OrderIdMap.has(monthStr) ? strBinarySearch(file1OrderIdMap.get(monthStr), orderId) === -1 : false
+        monthStr => file1OrderIdMap.has(monthStr) ? strBinarySearch(file1OrderIdMap.get(monthStr), orderId) !== -1 : false
       );
 
       if (findedIndex === -1) {
@@ -226,7 +243,20 @@ async function diff(filename1, filename2) {
 
   // console.log('check date range: ', diffRange);
 
-  await outputDiff(diffs, outputFilename);
+  if (diffs.size > 0) {
+    const diffArr = [
+      // sheet name, sheet data
+      ['说明', [ ['检查时间范围'], [diffRange] ]],
+    ];
+    for(let m of orderMonthRange) {
+      if (diffs.has(m)) {
+        diffArr.push([m, diffs.get(m)]);
+      }
+    }
+    await outputDiff(diffArr, outputFilename);
+  } else {
+    console.log(colors.ok('数据无差异，👍'));
+  }
 
   // for (let it of diffs) {
   //   await outputDiff([it], outputFilename.replace('.xlsx', `_${it[0]}.xlsx`));
