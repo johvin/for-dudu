@@ -11,7 +11,7 @@ const {
   strBinarySearch,
 } = require('../utils');
 
-const rootDir = '/Users/johvin/Documents/财务/订单/';
+const rootDir = '/Users/nilianzhu/Documents/财务/订单/';
 
 const filename1 = '创意云月明细（2018.01-2019.05）.xlsx';
 const filename2 = 'CYY-1-2 会员核算订单表内逻辑测试.xlsx';
