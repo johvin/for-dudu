@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const xlsx = require('node-xlsx');
+const { readData } = require('../excel');
 require('../colors');
 
-const rootDir = '/Users/bytedance/Documents/财务/合并/5月';
+const rootDir = '/Users/bytedance/Documents/财务/合并/4月';
 
-const thisMonth = '2023-05';
+const thisMonth = '2023-04';
 
 const getColumnIndex = col => col.codePointAt(0) - 'A'.codePointAt(0);
 
@@ -13,16 +14,20 @@ const getColumnIndex = col => col.codePointAt(0) - 'A'.codePointAt(0);
 const receivableHM = {
   base: getColumnIndex('A'),
   other: getColumnIndex('E'),
-  moneyJie: getColumnIndex('L'),
-  moneyDai: getColumnIndex('M'),
+  curMoneyJie: getColumnIndex('F'),
+  curMoneyDai: getColumnIndex('G'),
+  endMoneyJie: getColumnIndex('L'),
+  endMoneyDai: getColumnIndex('M'),
 };
 
 // 应付账款 header map
 const payableHM = {
   base: getColumnIndex('A'),
   other: getColumnIndex('E'),
-  moneyJie: getColumnIndex('L'),
-  moneyDai: getColumnIndex('M'),
+  curMoneyJie: getColumnIndex('F'),
+  curMoneyDai: getColumnIndex('G'),
+  endMoneyJie: getColumnIndex('L'),
+  endMoneyDai: getColumnIndex('M'),
 };
 
 process();
@@ -44,70 +49,77 @@ function process() {
   let receivableList = [];
   let payableList = [];
 
+  // 读取数据
   receivables.forEach(filename => {
-    const filePath = path.resolve(rootDir, filename);
-    const [{ data }] = xlsx.parse(filePath);
+    const [{ data }] = readData(rootDir, filename);
     // 前 3 行无用
     data.splice(0, 3);
     data.forEach(it => {
       receivableList.push({
         base: (it[receivableHM.base] ?? '').trim(),
         other: (it[receivableHM.other] ?? '').trim(),
-        moneyJie: it[receivableHM.moneyJie] ?? 0,
-        moneyDai: it[receivableHM.moneyDai] ?? 0,
+        curMoneyJie: it[receivableHM.curMoneyJie] ?? 0,
+        curMoneyDai: it[receivableHM.curMoneyDai] ?? 0,
+        endMoneyJie: it[receivableHM.endMoneyJie] ?? 0,
+        endMoneyDai: it[receivableHM.endMoneyDai] ?? 0,
       });
     });
   });
 
   payables.forEach(filename => {
-    const filePath = path.resolve(rootDir, filename);
-    const [{ data }] = xlsx.parse(filePath);
+    const [{ data }] = readData(rootDir, filename);
     // 前 3 行无用
     data.splice(0, 3);
     data.forEach(it => {
       payableList.push({
-        base: (it[receivableHM.base] ?? '').trim(),
-        other: (it[receivableHM.other] ?? '').trim(),
-        moneyJie: it[payableHM.moneyJie] ?? 0,
-        moneyDai: it[payableHM.moneyDai] ?? 0,
+        base: (it[payableHM.base] ?? '').trim(),
+        other: (it[payableHM.other] ?? '').trim(),
+        curMoneyJie: it[payableHM.curMoneyJie] ?? 0,
+        curMoneyDai: it[payableHM.curMoneyDai] ?? 0,
+        endMoneyJie: it[payableHM.endMoneyJie] ?? 0,
+        endMoneyDai: it[payableHM.endMoneyDai] ?? 0,
       });
     });
   });
 
-  [receivableList, payableList] = mergeData(receivableList, payableList);
+  [receivableList, payableList] = cleanAndMergeData(receivableList, payableList);
 
   // receivableList.forEach((it, idx) => {
-  //   console.log(`${idx}: ${it.base} <= ${it.other}, ${it.moneyJie}, ${it.moneyDai}`);
+  //   console.log(`${idx}: ${it.base} <= ${it.other}, ${it.endMoneyJie}, ${it.endMoneyDai}`);
   // });
 
   // payableList.forEach((it, idx) => {
-  //   console.log(`${idx}: ${it.base} => ${it.other}, ${it.moneyJie}, ${it.moneyDai}`);
+  //   console.log(`${idx}: ${it.base} => ${it.other}, ${it.endMoneyJie}, ${it.endMoneyDai}`);
   // });
 
   const result = [];
 
   for (const rit of receivableList) {
     const pit = payableList.filter(it => it.base === rit.other && it.other === rit.base)[0];
-    const jie = rit.moneyJie - rit.moneyDai;
-    const dai = pit ? pit.moneyDai - pit.moneyJie: 0;
+    const curMoneyJie = rit.curMoneyJie - rit.curMoneyDai;
+    const curMoneyDai = pit ? pit.curMoneyDai - pit.curMoneyJie : 0;
+    const endMoneyJie = rit.endMoneyJie - rit.endMoneyDai;
+    const endMoneyDai = pit ? pit.endMoneyDai - pit.endMoneyJie: 0;
     result.push({
       base: rit.base,
       other: rit.other,
-      moneyJie: jie,
-      moneyDai: dai,
-      diff: jie - dai,
+      curMoneyJie,
+      curMoneyDai,
+      endMoneyJie,
+      endMoneyDai,
+      diff: endMoneyJie - endMoneyDai,
     });
   }
 
   // result.forEach((it, idx) => {
-  //   console.log(`${idx}: ${it.base} <= ${it.other}, ${it.moneyJie}, ${it.moneyDai}, ${it.diff}`);
+  //   console.log(`${idx}: ${it.base} <= ${it.other}, ${it.endMoneyJie}, ${it.endMoneyDai}, ${it.diff}`);
   // });
 
   genConsolidatedReport(result);
 }
 
-function mergeData(receivableList, payableList) {
-  // clean first
+function cleanAndMergeData(receivableList, payableList) {
+  // 名字清洗
   for (let it of receivableList.concat(payableList)) {
     if (/\(\d+\)$/.test(it.base)) {
       const idx = it.base.lastIndexOf('(');
@@ -120,6 +132,7 @@ function mergeData(receivableList, payableList) {
     }
   }
 
+  // 无效数据剔除
   const receivableMap = new Map();
   const payableMap = new Map();
 
@@ -134,43 +147,33 @@ function mergeData(receivableList, payableList) {
   receivableList = receivableList.filter(it => it.base && it.other && payableMap.has(it.other));
   payableList = payableList.filter(it => it.base && it.other && receivableMap.has(it.other));
 
-  // merge
-  const nRec = receivableList.reduce((a, b) => {
+  // 合并相同公司数据
+  const merge = list => list.reduce((a, b) => {
     const it = a.filter(t => t.base === b.base && t.other === b.other)[0];
 
     if (it) {
-      it.moneyJie += b.moneyJie;
-      it.moneyDai += b.moneyDai;
+      it.curMoneyJie += b.curMoneyJie;
+      it.curMoneyDai += b.curMoneyDai;
+      it.endMoneyJie += b.endMoneyJie;
+      it.endMoneyDai += b.endMoneyDai;
     } else {
       a.push(b);
     }
     return a;
   }, []);
 
-  const nPay = payableList.reduce((a, b) => {
-    const it = a.filter(t => t.base === b.base && t.other === b.other)[0];
-
-    if (it) {
-      it.moneyJie += b.moneyJie;
-      it.moneyDai += b.moneyDai;
-    } else {
-      a.push(b);
-    }
-    return a;
-  }, []);
-
-  return [nRec, nPay];
+  return [merge(receivableList), merge(payableList)];
 }
 
 // 生成合并报表
 function genConsolidatedReport(reportData) {
   const data  = [];
-  const tHeader = ['base', 'other', '期末余额(借)', '期末余额(贷)', '差额'];
+  const tHeader = ['base', 'other', '本期发生(借)', '本期发生(贷)', '期末余额(借)', '期末余额(贷)', '期末差额'];
 
   data.push(tHeader);
   reportData.forEach(it => {
     data.push(
-      [it.base, it.other, it.moneyJie, it.moneyDai, it.diff]
+      [it.base, it.other, it.curMoneyJie, it.curMoneyDai, it.endMoneyJie, it.endMoneyDai, it.diff]
     );
   });
 
