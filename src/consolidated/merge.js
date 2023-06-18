@@ -1,14 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const xlsx = require('node-xlsx');
-const { readData } = require('../excel');
+const { rootDir, thisMonth } = require('./constants');
+const { readData, genExcel } = require('../excel');
+const { getColumnIndex } = require('../utils');
 require('../colors');
-
-const rootDir = '/Users/bytedance/Documents/财务/合并/4月';
-
-const thisMonth = '2023-04';
-
-const getColumnIndex = col => col.codePointAt(0) - 'A'.codePointAt(0);
 
 // 应收账款 header map
 const receivableHM = {
@@ -34,9 +29,10 @@ process();
 
 // 处理
 function process() {
-  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n文件夹路径: ${colors.em(rootDir)}`));
+  const sourceDir = path.resolve(rootDir, 'merge');
+  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n源文件夹路径: ${colors.em(sourceDir)}`));
 
-  const filenames = fs.readdirSync(rootDir);
+  const filenames = fs.readdirSync(sourceDir);
 
   const receivables = filenames.filter(n => /其他应收/.test(n));
   const payables = filenames.filter(n => /其他应付/.test(n));
@@ -51,7 +47,7 @@ function process() {
 
   // 读取数据
   receivables.forEach(filename => {
-    const [{ data }] = readData(rootDir, filename);
+    const [{ data }] = readData(sourceDir, filename);
     // 前 3 行无用
     data.splice(0, 3);
     data.forEach(it => {
@@ -67,7 +63,7 @@ function process() {
   });
 
   payables.forEach(filename => {
-    const [{ data }] = readData(rootDir, filename);
+    const [{ data }] = readData(sourceDir, filename);
     // 前 3 行无用
     data.splice(0, 3);
     data.forEach(it => {
@@ -177,17 +173,13 @@ function genConsolidatedReport(reportData) {
     );
   });
 
-  const buffer = xlsx.build([{
+  const outputFilename = `合并报表.xlsx`;
+  
+  return genExcel(rootDir, outputFilename, [{
     name: '合并',
     data,
-  }]);
-
-  const outputFilename = `合并报表.xlsx`;
-
-  return new Promise((resolve) => {
-    fs.createWriteStream(path.resolve(rootDir, outputFilename)).end(buffer, resolve);
-  }).then(() => {
+  }]).then(() => {
     console.log(colors.ok(`合并报表搞定 ✌️️️️️✌️️️️️✌️️️️️`));
-    // console.log(colors.verbose(`输出文件路径: ${outputFilename}`));
+    console.log(`结果文件：${colors.em(path.resolve(rootDir, outputFilename))}`)
   });
 }

@@ -172,9 +172,13 @@ function readFile(filePath, rowHandler) {
   });
 }
 
+/** 获取 Z 以内列的索引 */
+const getColumnIndex = col => col.codePointAt(0) - 'A'.codePointAt(0);
+
 exports.toFixed = toFixed;
 exports.parseYYYYMMDDFromExcelDateNumber = parseYYYYMMDDFromExcelDateNumber;
 exports.getYYYYMMDDDateStr = getYYYYMMDDDateStr;
 exports.getYYYYMMDateStr = getYYYYMMDateStr;
 exports.updateProgress = updateProgress;
 exports.strBinarySearch = strBinarySearch;
+exports.getColumnIndex = getColumnIndex;
