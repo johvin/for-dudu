@@ -9,6 +9,11 @@ function readData(rootDir, filename) {
   return xlsx.parse(filePath);
 }
 
+/** 读取小型纯文本 */
+function readText(rootDir, filename) {
+  const filePath = path.resolve(rootDir, filename);
+  return fs.readFileSync(filePath, { encoding: 'utf-8'});
+}
 
 
 /**
@@ -27,4 +32,5 @@ function genExcel(rootDir, outFilename, sheetList) {
 }
 
 exports.readData = readData;
+exports.readText = readText;
 exports.genExcel = genExcel;

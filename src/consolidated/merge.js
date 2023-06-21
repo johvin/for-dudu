@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { rootDir, thisMonth } = require('./constants');
+const { rootDir, thisMonth, fileDir } = require('./constants');
 const { readData, genExcel } = require('../excel');
 const { getColumnIndex } = require('../utils');
 require('../colors');
@@ -29,7 +29,7 @@ process();
 
 // 处理
 function process() {
-  const sourceDir = path.resolve(rootDir, 'merge');
+  const sourceDir = path.resolve(rootDir, fileDir.merge);
   console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n源文件夹路径: ${colors.em(sourceDir)}`));
 
   const filenames = fs.readdirSync(sourceDir);
