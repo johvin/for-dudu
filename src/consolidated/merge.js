@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { rootDir, thisMonth, fileDir } = require('./constants');
+const { rootDir, fileDir } = require('./constants');
 const { readData, genExcel } = require('../excel');
 const { getColumnIndex } = require('../utils');
 require('../colors');
@@ -30,7 +30,7 @@ process();
 // 处理
 function process() {
   const sourceDir = path.resolve(rootDir, fileDir.merge);
-  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n源文件夹路径: ${colors.em(sourceDir)}`));
+  console.log(colors.verbose(`正在处理数据 ...\n源文件夹路径: ${colors.em(colors.green(sourceDir))}`));
 
   const filenames = fs.readdirSync(sourceDir);
 
@@ -39,7 +39,7 @@ function process() {
 
   if (receivables.length === 0 || payables.length === 0) {
     console.log(colors.error('无其他应收、付文件，请检查文件'));
-    process.exit(1);
+    global.process.exit(1);
   }
 
   let receivableList = [];

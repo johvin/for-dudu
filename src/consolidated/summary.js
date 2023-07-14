@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { rootDir, thisMonth, fileDir } = require('./constants');
+const { rootDir, fileDir } = require('./constants');
 const { readData, readText, genExcel } = require('../excel');
 require('../colors');
 
@@ -19,15 +19,15 @@ process();
 // 处理
 function process() {
   const sourceDir = path.resolve(rootDir, fileDir.summary);
-  console.log(colors.verbose(`正在处理 ${colors.em(colors.green(thisMonth))} 数据 ...\n源文件夹路径: ${colors.em(sourceDir)}`));
+  console.log(colors.verbose(`正在处理数据 ...\n源文件夹路径: ${colors.em(colors.green(sourceDir))}`));
 
   const filenames = fs.readdirSync(sourceDir);
 
   const inputFiles = filenames.filter(n => /^\d+_/.test(n)).sort();
 
   if (inputFiles.length === 0) {
-    console.log(colors.error('无其他应收、付文件，请检查文件'));
-    process.exit(1);
+    console.log(colors.error('未找到要处理文件，请检查目录或文件名'));
+    global.process.exit(1);
   }
 
   const propertyList = [];
