@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { rootDir, fileDir } = require('./constants');
+const { rootDir, fileDir, outputFile } = require('./constants');
 const { readData, genExcel } = require('../excel');
 const { getColumnIndex } = require('../utils');
 require('../colors');
@@ -9,8 +9,8 @@ require('../colors');
 const receivableHM = {
   base: getColumnIndex('A'),
   other: getColumnIndex('E'),
-  curMoneyJie: getColumnIndex('F'),
-  curMoneyDai: getColumnIndex('G'),
+  curMoneyJie: getColumnIndex('H'),
+  curMoneyDai: getColumnIndex('I'),
   endMoneyJie: getColumnIndex('L'),
   endMoneyDai: getColumnIndex('M'),
 };
@@ -19,8 +19,8 @@ const receivableHM = {
 const payableHM = {
   base: getColumnIndex('A'),
   other: getColumnIndex('E'),
-  curMoneyJie: getColumnIndex('F'),
-  curMoneyDai: getColumnIndex('G'),
+  curMoneyJie: getColumnIndex('H'),
+  curMoneyDai: getColumnIndex(''),
   endMoneyJie: getColumnIndex('L'),
   endMoneyDai: getColumnIndex('M'),
 };
@@ -48,8 +48,8 @@ function process() {
   // 读取数据
   receivables.forEach(filename => {
     const [{ data }] = readData(sourceDir, filename);
-    // 前 3 行无用
-    data.splice(0, 3);
+    // 前 2 行无用
+    data.splice(0, 2);
     data.forEach(it => {
       receivableList.push({
         base: (it[receivableHM.base] ?? '').trim(),
@@ -64,8 +64,8 @@ function process() {
 
   payables.forEach(filename => {
     const [{ data }] = readData(sourceDir, filename);
-    // 前 3 行无用
-    data.splice(0, 3);
+    // 前 2 行无用
+    data.splice(0, 2);
     data.forEach(it => {
       payableList.push({
         base: (it[payableHM.base] ?? '').trim(),
@@ -133,6 +133,7 @@ function cleanAndMergeData(receivableList, payableList) {
   const payableMap = new Map();
 
   for (let it of payableList) {
+    // 无效数据
     payableMap.set(it.base);
   }
   
@@ -168,18 +169,22 @@ function genConsolidatedReport(reportData) {
 
   data.push(tHeader);
   reportData.forEach(it => {
+    if (it.base === '01') {
+      // 不统计 01
+      return;
+    }
     data.push(
       [it.base, it.other, it.curMoneyJie, it.curMoneyDai, it.endMoneyJie, it.endMoneyDai, it.diff]
     );
   });
 
-  const outputFilename = `合并报表.xlsx`;
+  const outputFilename = `${outputFile.merge}.xlsx`;
   
   return genExcel(rootDir, outputFilename, [{
-    name: '合并',
+    name: 'sheet',
     data,
   }]).then(() => {
-    console.log(colors.ok(`合并报表搞定 ✌️️️️️✌️️️️️✌️️️️️`));
+    console.log(colors.ok(`${outputFile.merge}搞定 ✌️️️️️✌️️️️️✌️️️️️`));
     console.log(`结果文件：${colors.em(path.resolve(rootDir, outputFilename))}`)
   });
 }

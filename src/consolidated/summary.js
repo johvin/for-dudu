@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { rootDir, fileDir } = require('./constants');
+const { rootDir, fileDir, outputFile } = require('./constants');
 const { readData, readText, genExcel } = require('../excel');
 require('../colors');
 
@@ -151,7 +151,7 @@ function summaryList(items, companyList) {
 
 // 生成合并报表
 function genSummaryReport(...summarys) {
-  const outputFilename = `汇总表.xlsx`;
+  const outputFilename = `${outputFile.summary}.xlsx`;
   const sheetNames = [
     ['资产负债表-期末', '资产负债表-年初'],
     ['利润表-当期', '利润表-累计'],
@@ -176,7 +176,7 @@ function genSummaryReport(...summarys) {
   });
   
   return genExcel(rootDir, outputFilename, sheetData).then(() => {
-    console.log(colors.ok(`汇总报表搞定 ✌️️️️️✌️️️️️✌️️️️️`));
+    console.log(colors.ok(`${outputFile.summary}搞定 ✌️️️️️✌️️️️️✌️️️️️`));
     console.log(`结果文件：${colors.em(path.resolve(rootDir, outputFilename))}`)
   });
 }
