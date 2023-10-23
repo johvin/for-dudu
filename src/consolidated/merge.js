@@ -20,7 +20,7 @@ const payableHM = {
   base: getColumnIndex('A'),
   other: getColumnIndex('E'),
   curMoneyJie: getColumnIndex('H'),
-  curMoneyDai: getColumnIndex(''),
+  curMoneyDai: getColumnIndex('I'),
   endMoneyJie: getColumnIndex('L'),
   endMoneyDai: getColumnIndex('M'),
 };

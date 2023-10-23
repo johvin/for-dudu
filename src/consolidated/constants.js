@@ -1,4 +1,4 @@
-const rootDir = '/Users/bytedance/Documents/财务/合并/8月';
+const rootDir = '/Users/bytedance/Documents/财务/合并/9月';
 
 // 源数据存放文件夹
 const fileDir = {
